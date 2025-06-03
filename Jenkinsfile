@@ -2,27 +2,42 @@ pipeline {
     agent any
 
     environment {
-        AWS_DEFAULT_REGION = 'us-east-1'                             // AWS region (not used here, keep for future)
-        EC2_USER = 'ec2-user'                                        // EC2 username
-        EC2_HOST = '16.170.231.171'                                  // EC2 public IP
-        PRIVATE_KEY = credentials('ec2-ssh-key')                     // SSH private key credential ID in Jenkins
-        IMAGE_NAME = 'my-app'                                        // Docker image name
-        IMAGE_TAG = "build-${env.BUILD_NUMBER}"                      // Docker image tag using build number
-        BRANCH_NAME = 'main'                                         // Git branch to build from
-        GIT_REPO = 'https://github.com/Success-C-Opara/electric-001.git' // GitHub repo URL
+        // EC2 instance SSH username (default Amazon Linux user)
+        EC2_USER = 'ec2-user' 
+        
+        // Public IP or DNS of your EC2 instance
+        EC2_HOST = '16.170.231.171'
+        
+        // Absolute path to your private key file (.pem) on the Jenkins agent machine
+        // Edit this if your key is stored elsewhere
+        PRIVATE_KEY_PATH = 'C:/Users/Success/Downloads/electric-key.pem'
+        
+        // Docker image name
+        IMAGE_NAME = 'my-app'
+        
+        // Tag the Docker image with the Jenkins build number for uniqueness
+        IMAGE_TAG = "build-${env.BUILD_NUMBER}"
+        
+        // GitHub repository URL
+        GIT_REPO = 'https://github.com/Success-C-Opara/electric-001.git'
+        
+        // Branch to build, edit this to run a different branch/job
+        BRANCH_NAME = 'main'
     }
 
     stages {
         stage('Clone Code') {
+            // Clone the code from GitHub repo
             steps {
-                // Clone the specific branch from GitHub repository
+                echo "Cloning branch '${BRANCH_NAME}' from ${GIT_REPO}"
                 git branch: "${BRANCH_NAME}", url: "${GIT_REPO}"
             }
         }
 
         stage('Build Docker Image') {
+            // Build Docker image from the Dockerfile in the repo
             steps {
-                // Build the Docker image locally tagged with build number
+                echo "Building Docker image ${IMAGE_NAME}:${IMAGE_TAG}"
                 sh """
                 docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                 """
@@ -30,23 +45,30 @@ pipeline {
         }
 
         stage('Save Docker Image') {
+            // Save Docker image to a tar file for transfer to EC2
             steps {
-                // Save the Docker image as a tarball to transfer to EC2 instance
+                echo "Saving Docker image to ${IMAGE_NAME}-${IMAGE_TAG}.tar"
                 sh """
                 docker save -o ${IMAGE_NAME}-${IMAGE_TAG}.tar ${IMAGE_NAME}:${IMAGE_TAG}
                 """
-                // Archive the tarball as a Jenkins artifact (optional)
+                // Archive the tar file as Jenkins artifact (optional)
                 archiveArtifacts artifacts: "${IMAGE_NAME}-${IMAGE_TAG}.tar"
             }
         }
 
         stage('Copy and Deploy to EC2') {
+            /* 
+             * Copy the Docker image tarball to EC2 via SCP,
+             * then SSH into EC2 and load & run the Docker container.
+             * Uses the .pem file from PRIVATE_KEY_PATH for authentication.
+             * Edit PRIVATE_KEY_PATH, EC2_USER, EC2_HOST if needed.
+             */
             steps {
-                // Copy the Docker image tarball to EC2 instance and deploy
+                echo "Deploying Docker image to EC2 at ${EC2_HOST}"
                 sh """
-                scp -o StrictHostKeyChecking=no -i ${PRIVATE_KEY} ${IMAGE_NAME}-${IMAGE_TAG}.tar ${EC2_USER}@${EC2_HOST}:~/
+                scp -o StrictHostKeyChecking=no -i ${PRIVATE_KEY_PATH} ${IMAGE_NAME}-${IMAGE_TAG}.tar ${EC2_USER}@${EC2_HOST}:~/
 
-                ssh -o StrictHostKeyChecking=no -i ${PRIVATE_KEY} ${EC2_USER}@${EC2_HOST} << EOF
+                ssh -o StrictHostKeyChecking=no -i ${PRIVATE_KEY_PATH} ${EC2_USER}@${EC2_HOST} << EOF
                     docker stop ${IMAGE_NAME} || true
                     docker rm ${IMAGE_NAME} || true
                     docker load -i ${IMAGE_NAME}-${IMAGE_TAG}.tar
