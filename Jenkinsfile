@@ -23,14 +23,18 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 echo "Building Docker image ${IMAGE_NAME}:${IMAGE_TAG}"
-                bat "${GIT_BASH} \"docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .\""
+                bat """
+                ${GIT_BASH} "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                """
             }
         }
 
         stage('Save Docker Image') {
             steps {
                 echo "Saving Docker image to ${IMAGE_NAME}-${IMAGE_TAG}.tar"
-                bat "${GIT_BASH} \"docker save -o ${IMAGE_NAME}-${IMAGE_TAG}.tar ${IMAGE_NAME}:${IMAGE_TAG}\""
+                bat """
+                ${GIT_BASH} "docker save -o ${IMAGE_NAME}-${IMAGE_TAG}.tar ${IMAGE_NAME}:${IMAGE_TAG}"
+                """
                 archiveArtifacts artifacts: "${IMAGE_NAME}-${IMAGE_TAG}.tar"
             }
         }
@@ -39,8 +43,8 @@ pipeline {
             steps {
                 echo "Deploying Docker image to EC2 at ${EC2_HOST}"
                 bat """
-                ${GIT_BASH} "scp -o StrictHostKeyChecking=no -i '${PRIVATE_KEY_PATH}' ${IMAGE_NAME}-${IMAGE_TAG}.tar ${EC2_USER}@${EC2_HOST}:~/"
-                ${GIT_BASH} "ssh -o StrictHostKeyChecking=no -i '${PRIVATE_KEY_PATH}' ${EC2_USER}@${EC2_HOST} \\
+                ${GIT_BASH} "scp -o StrictHostKeyChecking=no -i ${PRIVATE_KEY_PATH} ${IMAGE_NAME}-${IMAGE_TAG}.tar ${EC2_USER}@${EC2_HOST}:~/"
+                ${GIT_BASH} "ssh -o StrictHostKeyChecking=no -i ${PRIVATE_KEY_PATH} ${EC2_USER}@${EC2_HOST} \\
                 'docker stop ${IMAGE_NAME} || true && \\
                  docker rm ${IMAGE_NAME} || true && \\
                  docker load -i ${IMAGE_NAME}-${IMAGE_TAG}.tar && \\
