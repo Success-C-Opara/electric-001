@@ -30,7 +30,7 @@ pipeline {
                 )]) {
                     echo "🐳 Logging into DockerHub"
                     bat """
-                        ${GIT_BASH} "echo \\"${DOCKERHUB_PASS}\\" | docker login -u \\"${DOCKERHUB_USER}\\" --password-stdin"
+                        ${GIT_BASH} "echo '${DOCKERHUB_PASS}' | docker login -u '${DOCKERHUB_USER}' --password-stdin"
                     """
 
                     echo "🐳 Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
@@ -46,7 +46,7 @@ pipeline {
                     echo "🚀 Deploying to EC2: ${EC2_HOST}"
                     script {
                         def remoteScript = """
-                            echo \\"${DOCKERHUB_PASS}\\" | docker login -u \\"${DOCKERHUB_USER}\\" --password-stdin && \
+                            echo '${DOCKERHUB_PASS}' | docker login -u '${DOCKERHUB_USER}' --password-stdin && \
                             docker pull ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG} && \
                             docker stop ${IMAGE_NAME} || true && \
                             docker rm ${IMAGE_NAME} || true && \
@@ -54,12 +54,10 @@ pipeline {
                         """.stripIndent().trim()
 
                         // Escape for one-liner SSH inside Git Bash
-                        def escapedScript = remoteScript
-                            .replace('\\', '\\\\')
-                            .replace('"', '\\"')
+                        def escapedScript = remoteScript.replace("'", "'\\''")
 
                         def sshCommand = """
-                            ${GIT_BASH} "ssh -o StrictHostKeyChecking=no -i '${PRIVATE_KEY_PATH}' ${EC2_USER}@${EC2_HOST} \\"${escapedScript}\\""
+                            ${GIT_BASH} "ssh -o StrictHostKeyChecking=no -i '${PRIVATE_KEY_PATH}' ${EC2_USER}@${EC2_HOST} '${escapedScript}'"
                         """.stripIndent().trim()
 
                         bat sshCommand
