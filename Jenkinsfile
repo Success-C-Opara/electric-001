@@ -22,38 +22,32 @@ pipeline {
             }
         }
 
-        stage('Docker Login & Build') {
+        stage('Docker Build, Push & Deploy') {
             steps {
-                echo "🐳 Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
                 withCredentials([usernamePassword(
                     credentialsId: "${DOCKERHUB_CREDENTIALS_ID}",
                     usernameVariable: 'DOCKERHUB_USER',
                     passwordVariable: 'DOCKERHUB_PASS'
                 )]) {
+                    echo "🐳 Logging into DockerHub"
                     bat "${GIT_BASH} \"docker login -u $DOCKERHUB_USER -p $DOCKERHUB_PASS\""
+
+                    echo "🐳 Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}"
                     bat "${GIT_BASH} \"docker build -t $DOCKERHUB_USER/${IMAGE_NAME}:${IMAGE_TAG} .\""
+
+                    echo "📤 Pushing Docker image to DockerHub"
+                    bat "${GIT_BASH} \"docker push $DOCKERHUB_USER/${IMAGE_NAME}:${IMAGE_TAG}\""
+
+                    echo "🚀 Deploying to EC2: ${EC2_HOST}"
+                    bat """
+                    ${GIT_BASH} "ssh -o StrictHostKeyChecking=no -i '${PRIVATE_KEY_PATH}' ${EC2_USER}@${EC2_HOST} \\
+                    'docker login -u $DOCKERHUB_USER -p $DOCKERHUB_PASS && \\
+                    docker pull $DOCKERHUB_USER/${IMAGE_NAME}:${IMAGE_TAG} && \\
+                    docker stop ${IMAGE_NAME} || true && \\
+                    docker rm ${IMAGE_NAME} || true && \\
+                    docker run -d --name ${IMAGE_NAME} -p 80:80 $DOCKERHUB_USER/${IMAGE_NAME}:${IMAGE_TAG}'"
+                    """
                 }
-            }
-        }
-
-        stage('Push to DockerHub') {
-            steps {
-                echo "📤 Pushing Docker image to DockerHub"
-                bat "${GIT_BASH} \"docker push $DOCKERHUB_USER/${IMAGE_NAME}:${IMAGE_TAG}\""
-            }
-        }
-
-        stage('Deploy to EC2') {
-            steps {
-                echo "🚀 Deploying to EC2: ${EC2_HOST}"
-                bat """
-                ${GIT_BASH} "ssh -o StrictHostKeyChecking=no -i '${PRIVATE_KEY_PATH}' ${EC2_USER}@${EC2_HOST} \\
-                'docker login -u $DOCKERHUB_USER -p $DOCKERHUB_PASS && \\
-                 docker pull $DOCKERHUB_USER/${IMAGE_NAME}:${IMAGE_TAG} && \\
-                 docker stop ${IMAGE_NAME} || true && \\
-                 docker rm ${IMAGE_NAME} || true && \\
-                 docker run -d --name ${IMAGE_NAME} -p 80:80 $DOCKERHUB_USER/${IMAGE_NAME}:${IMAGE_TAG}'"
-                """
             }
         }
     }
