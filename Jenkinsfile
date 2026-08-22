@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         EC2_USER = 'ec2-user'
-        EC2_HOST = '16.170.140.55'
-        PRIVATE_KEY_PATH = 'C:/Users/Success/Downloads/electricaa-key.pem'
+        EC2_HOST = '98.80.168.60'
+        PRIVATE_KEY_PATH = 'C:/Users/Success/Downloads/elect.pem'
         IMAGE_NAME = 'newweek-eletricaa'
         IMAGE_TAG = "build-${env.BUILD_NUMBER}"
         GIT_REPO = 'https://github.com/Success-C-Opara/electric-001.git'
